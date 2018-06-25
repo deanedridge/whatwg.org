@@ -47,11 +47,14 @@ self.onfetch = e => {
       caches.match(e.request).then(cachedResponse => {
         const networkFetchPromise = fetch(e.request);
 
-        // Ignore network fetch or caching errors; they just mean we won't be able to refresh the cache.
+        // Only warn on network fetch or caching errors; they just mean we won't be able to refresh
+        // the cache. (But, don't ignore them, because that could hide coding errors.)
         e.waitUntil(
           networkFetchPromise
             .then(res => refreshCacheFromNetworkResponse(e.request, res))
-            .catch(() => {})
+            .catch(e => {
+              console.warn(`Could not refresh the cache for ${e.request.url}`, e);
+            })
         );
 
         return cachedResponse || networkFetchPromise;
@@ -67,7 +70,7 @@ self.onactivate = e => {
 };
 
 function refreshCacheFromNetworkResponse(req, res) {
-  if (!res.ok) {
+  if (res.type !== "opaque" && !res.ok) {
     throw new Error(`${res.url} is responding with ${res.status}`);
   }
 
@@ -77,6 +80,5 @@ function refreshCacheFromNetworkResponse(req, res) {
 }
 
 function needsToBeFresh(req) {
-  const requestURL = new URL(req.url);
-  return requestURL.origin === location.origin && requestURL.pathname === "/";
+  return req.mode === "navigate";
 }
